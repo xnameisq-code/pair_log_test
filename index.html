@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OUR ARCHIVE - Final Profile Integration</title>
+    <title>OUR ARCHIVE - Fixed Profile Sync</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@300;400;700&family=Gowun+Dodum&family=Gaegu&family=Do+Hyeon&family=Song+Myung&family=Jua&display=swap" rel="stylesheet">
@@ -96,7 +96,7 @@
 
         /* 작성자 프로필 미니 (카톡 스타일) */
         .author-mini-box { display: flex; align-items: center; gap: 6px; }
-        .author-mini-img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .author-mini-img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); background-color: #ddd; }
         .author-mini-name { font-weight: bold; color: var(--text-color); font-size: 0.75rem; }
 
         .book-container { padding: 10px 10px 80px 10px; }
@@ -505,6 +505,7 @@
         }
 
         let coupleData = {}; 
+        let cachedLogs = []; // Store logs to re-render when meta changes
 
         function loadMeta() {
             if(unsubMeta) unsubMeta();
@@ -524,8 +525,8 @@
                     if(d.tabNameB) document.getElementById('tab-name-b').value = d.tabNameB;
                     renderProfileContent();
                     
-                    // Re-render logs when meta changes to update profile pics
-                    loadLogs();
+                    // IMPORTANT: Re-render logs when profile data changes to update images/names immediately
+                    renderLogs(cachedLogs);
 
                     if(d.theme) changeTheme(d.theme, document.querySelector(`.color-option[data-theme="${d.theme}"]`)||document.querySelector('.color-option'));
                     if(d.font) changeFont(d.font, document.querySelector(`.font-option[data-font="${d.font}"]`)||document.querySelector('.font-option'));
@@ -622,16 +623,28 @@
 
         const escapeStr = (str) => str ? str.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n') : '';
 
-        // Helper to get author image for logs (Memo, Log, Music, TMI)
-        function getLogAuthorImg(log) {
+        // *** FIX: Dynamic Author Info Retrieval ***
+        // Instead of using saved strings, use the Role to get fresh data from coupleData
+        function getLogDisplayInfo(log) {
             let role = log.authorRole;
-            // Fallback for old data: match name
+            let name = log.author;
+            let img = 'https://via.placeholder.com/30?text=?';
+
+            // Try to deduce role for old data if missing
             if (!role && log.author) {
                 if (log.author === coupleData.nameA) role = 'A';
                 else if (log.author === coupleData.nameB) role = 'B';
             }
-            // Use role to get current image
-            return (role && coupleData['profile' + role]) ? coupleData['profile' + role] : 'https://via.placeholder.com/30?text=?';
+
+            if (role === 'A') {
+                name = coupleData.nameA || name;
+                img = coupleData.profileA || img;
+            } else if (role === 'B') {
+                name = coupleData.nameB || name;
+                img = coupleData.profileB || img;
+            }
+
+            return { name, img };
         }
 
         function loadLogs() {
@@ -639,88 +652,92 @@
             unsubLogs = db.collection('logs').where('pairCode','==',myPairCode).onSnapshot(snap => {
                 const logs=[]; snap.forEach(d=>logs.push({id:d.id, ...d.data()}));
                 logs.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-                
-                const album=document.getElementById('album-grid'), memo=document.getElementById('memo-grid'), pl=document.getElementById('playlist-container'), novel=document.getElementById('novel-book-body'), tmi=document.getElementById('tmi-list');
-                album.innerHTML=''; memo.innerHTML=''; pl.innerHTML=''; novel.innerHTML=''; tmi.innerHTML='';
-                
-                let count=0;
-                const novels=logs.filter(l=>l.type==='novel').reverse();
-                
-                logs.filter(l=>l.type!=='novel').forEach(l=>{
-                    const authImg = getLogAuthorImg(l);
-                    
-                    if(l.type==='photo') {
-                        album.innerHTML+=`<div class="polaroid" onclick="viewPhoto('${l.id}','${l.image}')"><img src="${l.image}" class="polaroid-img"></div>`;
-                    }
-                    else if(l.type==='memo') {
-                        memo.innerHTML+=`
-                        <div class="memo-card" onclick="editMemo('${l.id}','${escapeStr(l.text)}')">
-                            <div class="memo-tape"></div>
-                            <div class="memo-content">${l.text}</div>
-                            <div class="memo-footer">
-                                <span>${l.dateStr}</span>
-                                <div class="author-mini-box">
-                                    <img src="${authImg}" class="author-mini-img">
-                                    <span class="author-mini-name">${l.author}</span>
-                                </div>
-                            </div>
-                        </div>`;
-                    }
-                    else if(l.type==='music') {
-                        pl.innerHTML+=`
-                        <div class="music-card">
-                            <div class="music-video-wrapper"><iframe src="https://www.youtube.com/embed/${l.videoId}" frameborder="0"></iframe></div>
-                            <div class="music-info">
-                                <div class="music-top-row">
-                                    <h3 class="font-bold text-gray-800 text-lg">${l.title}</h3>
-                                    <div class="flex gap-2">
-                                        <button onclick="editMusic('${l.id}','${escapeStr(l.title)}','${escapeStr(l.artist)}','${l.videoId}')"><i class="fas fa-edit text-gray-400"></i></button>
-                                        <button onclick="deleteMusic('${l.id}')"><i class="fas fa-trash text-red-300"></i></button>
-                                    </div>
-                                </div>
-                                <div class="text-xs text-gray-500">${l.artist}</div>
-                                <div class="music-recommender">
-                                    <img src="${authImg}" class="author-mini-img" style="width:20px;height:20px;">
-                                    <span>${l.author}님의 추천</span>
-                                </div>
-                            </div>
-                        </div>`;
-                    }
-                    else if(l.type==='tmi') {
-                        tmi.innerHTML+=`
-                        <div class="tmi-card" onclick="editTmi('${l.id}','${escapeStr(l.text)}')">
-                            <div class="tmi-tape"></div>
-                            <div class="tmi-header">TMI</div>
-                            <div class="tmi-content">${l.text}</div>
-                            <div class="tmi-footer">
-                                <div class="author-mini-box">
-                                    <img src="${authImg}" class="author-mini-img">
-                                    <span class="author-mini-name">${l.author}</span>
-                                </div>
-                                <span>${l.dateStr}</span>
-                            </div>
-                        </div>`;
-                    }
-                });
+                cachedLogs = logs; // Cache for re-rendering on profile update
+                renderLogs(logs);
+            });
+        }
 
-                novels.forEach(l => {
-                    const authImg = getLogAuthorImg(l);
-                    novel.innerHTML+=`
-                    <div class="novel-chapter" onclick="editLog('${l.id}','${escapeStr(l.title)}','${escapeStr(l.text)}')">
-                        <div class="chapter-header">
-                            <span class="text-xs text-theme-color font-novel">Chapter ${++count}</span>
-                            <h2 class="chapter-title">${l.title}</h2>
-                            <div class="chapter-meta">
-                                <img src="${authImg}" class="author-mini-img" style="width:20px;height:20px;">
-                                <span>${l.author}</span>
-                                <span>|</span>
-                                <span>${l.dateStr}</span>
+        function renderLogs(logs) {
+            const album=document.getElementById('album-grid'), memo=document.getElementById('memo-grid'), pl=document.getElementById('playlist-container'), novel=document.getElementById('novel-book-body'), tmi=document.getElementById('tmi-list');
+            album.innerHTML=''; memo.innerHTML=''; pl.innerHTML=''; novel.innerHTML=''; tmi.innerHTML='';
+            
+            let count=0;
+            const novels=logs.filter(l=>l.type==='novel').reverse();
+            
+            logs.filter(l=>l.type!=='novel').forEach(l=>{
+                const info = getLogDisplayInfo(l); // Get dynamic info
+                
+                if(l.type==='photo') {
+                    album.innerHTML+=`<div class="polaroid" onclick="viewPhoto('${l.id}','${l.image}')"><img src="${l.image}" class="polaroid-img"></div>`;
+                }
+                else if(l.type==='memo') {
+                    memo.innerHTML+=`
+                    <div class="memo-card" onclick="editMemo('${l.id}','${escapeStr(l.text)}')">
+                        <div class="memo-tape"></div>
+                        <div class="memo-content">${l.text}</div>
+                        <div class="memo-footer">
+                            <span>${l.dateStr}</span>
+                            <div class="author-mini-box">
+                                <img src="${info.img}" class="author-mini-img">
+                                <span class="author-mini-name">${info.name}</span>
                             </div>
                         </div>
-                        <div class="chapter-content">${l.text}</div>
-                        <div class="chapter-divider">✻</div>
                     </div>`;
-                });
+                }
+                else if(l.type==='music') {
+                    pl.innerHTML+=`
+                    <div class="music-card">
+                        <div class="music-video-wrapper"><iframe src="https://www.youtube.com/embed/${l.videoId}" frameborder="0"></iframe></div>
+                        <div class="music-info">
+                            <div class="music-top-row">
+                                <h3 class="font-bold text-gray-800 text-lg">${l.title}</h3>
+                                <div class="flex gap-2">
+                                    <button onclick="editMusic('${l.id}','${escapeStr(l.title)}','${escapeStr(l.artist)}','${l.videoId}')"><i class="fas fa-edit text-gray-400"></i></button>
+                                    <button onclick="deleteMusic('${l.id}')"><i class="fas fa-trash text-red-300"></i></button>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500">${l.artist}</div>
+                            <div class="music-recommender">
+                                <img src="${info.img}" class="author-mini-img" style="width:20px;height:20px;">
+                                <span>${info.name}님의 추천</span>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+                else if(l.type==='tmi') {
+                    tmi.innerHTML+=`
+                    <div class="tmi-card" onclick="editTmi('${l.id}','${escapeStr(l.text)}')">
+                        <div class="tmi-tape"></div>
+                        <div class="tmi-header">TMI</div>
+                        <div class="tmi-content">${l.text}</div>
+                        <div class="tmi-footer">
+                            <div class="author-mini-box">
+                                <img src="${info.img}" class="author-mini-img">
+                                <span class="author-mini-name">${info.name}</span>
+                            </div>
+                            <span>${l.dateStr}</span>
+                        </div>
+                    </div>`;
+                }
+            });
+
+            novels.forEach(l => {
+                const info = getLogDisplayInfo(l);
+                novel.innerHTML+=`
+                <div class="novel-chapter" onclick="editLog('${l.id}','${escapeStr(l.title)}','${escapeStr(l.text)}')">
+                    <div class="chapter-header">
+                        <span class="text-xs text-theme-color font-novel">Chapter ${++count}</span>
+                        <h2 class="chapter-title">${l.title}</h2>
+                        <div class="chapter-meta">
+                            <img src="${info.img}" class="author-mini-img" style="width:20px;height:20px;">
+                            <span>${info.name}</span>
+                            <span>|</span>
+                            <span>${l.dateStr}</span>
+                        </div>
+                    </div>
+                    <div class="chapter-content">${l.text}</div>
+                    <div class="chapter-divider">✻</div>
+                </div>`;
             });
         }
 
