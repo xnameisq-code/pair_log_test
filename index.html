@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OUR ARCHIVE - Fixed Profile Sync</title>
+    <title>OUR ARCHIVE - Music Player Fixed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@300;400;700&family=Gowun+Dodum&family=Gaegu&family=Do+Hyeon&family=Song+Myung&family=Jua&display=swap" rel="stylesheet">
@@ -94,7 +94,7 @@
         .memo-content { font-family: var(--main-font); font-size: 0.9rem; flex-grow: 1; margin-bottom: 10px; white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
         .memo-footer { border-top: 1px dashed rgba(0,0,0,0.1); padding-top: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #6b7280; }
 
-        /* 작성자 프로필 미니 (카톡 스타일) */
+        /* 작성자 프로필 미니 */
         .author-mini-box { display: flex; align-items: center; gap: 6px; }
         .author-mini-img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); background-color: #ddd; }
         .author-mini-name { font-weight: bold; color: var(--text-color); font-size: 0.75rem; }
@@ -154,6 +154,70 @@
         
         .identity-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; transition: 0.2s; border: 1px solid #e5e7eb; margin-bottom: 20px; }
         .identity-badge.active { background-color: var(--theme-color); color: white; border-color: var(--theme-color); font-weight: bold; }
+
+        /* [NEW] 프로필 뮤직 플레이어 스타일 */
+        .music-player-card {
+            background-color: #f5f5f5; /* Light Gray like image */
+            border-radius: 24px;
+            padding: 24px 16px;
+            width: 220px;
+            margin: 0 auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .music-circle-mask {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #000;
+            margin-bottom: 20px;
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        /* iframe이 원을 꽉 채우도록 */
+        .music-circle-mask iframe {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; 
+            transform: scale(1.35); /* 약간 확대해서 레터박스 제거 */
+        }
+        .player-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .control-btn {
+            color: #9ca3af;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 1.2rem;
+        }
+        .control-btn:hover { color: #374151; }
+        .play-btn {
+            font-size: 1.8rem;
+            color: #4b5563;
+        }
+        .play-btn:hover { color: #1f2937; transform: scale(1.1); }
+        
+        .player-progress-bar {
+            width: 80%;
+            height: 4px;
+            background-color: #e5e7eb;
+            border-radius: 2px;
+            position: relative;
+        }
+        .player-progress-fill {
+            width: 30%; /* 장식용 고정 */
+            height: 100%;
+            background-color: #9ca3af;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body class="bg-gray-50 flex justify-center">
@@ -247,11 +311,23 @@
                             <input type="text" id="profile-name-input" class="profile-input-name" placeholder="NAME" onchange="saveCurrentProfile('name', this.value)">
                             <textarea id="profile-desc-input" class="profile-input-desc" placeholder="세부 내용을 작성해주세요." onchange="saveCurrentProfile('desc', this.value)"></textarea>
                         </div>
+                        
                         <div class="w-full px-4 mb-20">
-                            <div class="text-xs text-gray-400 font-bold mb-2 text-center tracking-widest">THEME SONG</div>
-                            <input type="text" id="profile-song-url" class="w-full text-center text-xs border-b border-gray-200 py-1 outline-none mb-3 bg-transparent placeholder-gray-300" placeholder="YouTube URL 입력" onchange="updateProfileSong(this.value)">
-                            <div id="profile-player-container" class="w-full rounded-lg overflow-hidden hidden shadow-sm">
-                                <iframe id="profile-player-frame" width="100%" height="80" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+                            <div class="text-xs text-gray-400 font-bold mb-4 text-center tracking-widest">THEME SONG</div>
+                            <input type="text" id="profile-song-url" class="w-full text-center text-xs border-b border-gray-200 py-1 outline-none mb-6 bg-transparent placeholder-gray-300" placeholder="YouTube URL 입력" onchange="updateProfileSong(this.value)">
+                            
+                            <div id="profile-player-container" class="music-player-card hidden">
+                                <div class="music-circle-mask">
+                                    <div id="youtube-player-placeholder"></div>
+                                </div>
+                                <div class="player-controls">
+                                    <i class="fas fa-step-backward control-btn" onclick="seekPlayer(-10)"></i>
+                                    <i id="player-play-btn" class="fas fa-play play-btn" onclick="togglePlay()"></i>
+                                    <i class="fas fa-step-forward control-btn" onclick="seekPlayer(10)"></i>
+                                </div>
+                                <div class="player-progress-bar">
+                                    <div class="player-progress-fill"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -463,6 +539,20 @@
         let myIdentity = null; 
         const screens = { login: document.getElementById('login-screen'), connect: document.getElementById('connect-screen'), app: document.getElementById('app-screen') };
 
+        // [NEW] YouTube API Load
+        let tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        let firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        let player;
+        let isPlayerReady = false;
+
+        function onYouTubeIframeAPIReady() {
+            // API Loaded, wait for init call
+            isPlayerReady = true;
+        }
+
         // Auth
         document.getElementById('google-login-btn').addEventListener('click', () => {
              auth.setPersistence(firebase.auth.Auth.Persistence.SESSION)
@@ -505,7 +595,7 @@
         }
 
         let coupleData = {}; 
-        let cachedLogs = []; // Store logs to re-render when meta changes
+        let cachedLogs = []; 
 
         function loadMeta() {
             if(unsubMeta) unsubMeta();
@@ -523,9 +613,8 @@
                     if(d.nameB) document.getElementById('main-char-b-name').innerText=d.nameB;
                     if(d.tabNameA) document.getElementById('tab-name-a').value = d.tabNameA;
                     if(d.tabNameB) document.getElementById('tab-name-b').value = d.tabNameB;
-                    renderProfileContent();
                     
-                    // IMPORTANT: Re-render logs when profile data changes to update images/names immediately
+                    renderProfileContent();
                     renderLogs(cachedLogs);
 
                     if(d.theme) changeTheme(d.theme, document.querySelector(`.color-option[data-theme="${d.theme}"]`)||document.querySelector('.color-option'));
@@ -568,22 +657,80 @@
             document.getElementById('profile-name-input').value = name;
             document.getElementById('profile-desc-input').value = desc;
             document.getElementById('profile-song-url').value = song;
+            
+            // [NEW] Call Player Update
             updatePlayer(song);
+            
             updateIdentityBadge();
         }
 
         function saveCurrentProfile(field, value) { saveMeta(field + currentProfileTab, value); }
         function updateProfileSong(url) { saveCurrentProfile('song', url); updatePlayer(url); }
+
+        // [NEW] YouTube Player Logic with API
         function updatePlayer(url) {
-            const frame = document.getElementById('profile-player-frame');
             const container = document.getElementById('profile-player-container');
             let v = '';
             if(url) {
                 if(url.includes('v=')) v = url.split('v=')[1].substring(0,11);
                 else if(url.includes('youtu.be/')) v = url.split('youtu.be/')[1].substring(0,11);
             }
-            if(v) { container.classList.remove('hidden'); frame.src = `https://www.youtube.com/embed/${v}`; } 
-            else { container.classList.add('hidden'); frame.src = ''; }
+
+            if(v) {
+                container.classList.remove('hidden');
+                if(player && typeof player.loadVideoById === 'function') {
+                    player.loadVideoById(v);
+                } else {
+                    // Create Player
+                    // Need to wait slightly if API isn't fully ready, but usually on page load it is.
+                    // If div replaced, create new on the ID
+                    if(document.getElementById('youtube-player-placeholder')) {
+                        player = new YT.Player('youtube-player-placeholder', {
+                            height: '100%',
+                            width: '100%',
+                            videoId: v,
+                            playerVars: {
+                                'playsinline': 1,
+                                'controls': 0, // Hide default controls
+                                'modestbranding': 1
+                            },
+                            events: {
+                                'onStateChange': onPlayerStateChange
+                            }
+                        });
+                    }
+                }
+            } else {
+                container.classList.add('hidden');
+                if(player && typeof player.stopVideo === 'function') player.stopVideo();
+            }
+        }
+
+        function togglePlay() {
+            if(!player) return;
+            const state = player.getPlayerState();
+            if(state === YT.PlayerState.PLAYING) {
+                player.pauseVideo();
+            } else {
+                player.playVideo();
+            }
+        }
+
+        function seekPlayer(seconds) {
+            if(!player) return;
+            const currentTime = player.getCurrentTime();
+            player.seekTo(currentTime + seconds, true);
+        }
+
+        function onPlayerStateChange(event) {
+            const btn = document.getElementById('player-play-btn');
+            if (event.data == YT.PlayerState.PLAYING) {
+                btn.classList.remove('fa-play');
+                btn.classList.add('fa-pause');
+            } else {
+                btn.classList.remove('fa-pause');
+                btn.classList.add('fa-play');
+            }
         }
 
         function uploadProfileImage(input) {
@@ -623,19 +770,14 @@
 
         const escapeStr = (str) => str ? str.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n') : '';
 
-        // *** FIX: Dynamic Author Info Retrieval ***
-        // Instead of using saved strings, use the Role to get fresh data from coupleData
         function getLogDisplayInfo(log) {
             let role = log.authorRole;
             let name = log.author;
             let img = 'https://via.placeholder.com/30?text=?';
-
-            // Try to deduce role for old data if missing
             if (!role && log.author) {
                 if (log.author === coupleData.nameA) role = 'A';
                 else if (log.author === coupleData.nameB) role = 'B';
             }
-
             if (role === 'A') {
                 name = coupleData.nameA || name;
                 img = coupleData.profileA || img;
@@ -643,7 +785,6 @@
                 name = coupleData.nameB || name;
                 img = coupleData.profileB || img;
             }
-
             return { name, img };
         }
 
@@ -652,7 +793,7 @@
             unsubLogs = db.collection('logs').where('pairCode','==',myPairCode).onSnapshot(snap => {
                 const logs=[]; snap.forEach(d=>logs.push({id:d.id, ...d.data()}));
                 logs.sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-                cachedLogs = logs; // Cache for re-rendering on profile update
+                cachedLogs = logs; 
                 renderLogs(logs);
             });
         }
@@ -665,7 +806,7 @@
             const novels=logs.filter(l=>l.type==='novel').reverse();
             
             logs.filter(l=>l.type!=='novel').forEach(l=>{
-                const info = getLogDisplayInfo(l); // Get dynamic info
+                const info = getLogDisplayInfo(l); 
                 
                 if(l.type==='photo') {
                     album.innerHTML+=`<div class="polaroid" onclick="viewPhoto('${l.id}','${l.image}')"><img src="${l.image}" class="polaroid-img"></div>`;
@@ -774,10 +915,8 @@
         async function saveMemo(){
             const id=document.getElementById('memo-id').value, t=document.getElementById('memo-content-input').value;
             if(!t) return alert('내용 입력');
-            
             const info = getMyInfo();
             if(!id && (!info.role)) return alert('프로필 탭에서 내 프로필을 먼저 선택해주세요!');
-            
             const d={pairCode:myPairCode, type:'memo', text:t, dateStr:new Date().toLocaleDateString(), createdAt:new Date()};
             if(!id) { d.author = info.name; d.authorRole = info.role; await db.collection('logs').add(d); }
             else await db.collection('logs').doc(id).update({text:t});
@@ -791,10 +930,8 @@
         async function saveLog(){
             const id=document.getElementById('log-id').value, t=document.getElementById('log-title-input').value, c=document.getElementById('log-content-input').value;
             if(!t || !c) return alert('입력 확인');
-            
             const info = getMyInfo();
             if(!id && (!info.role)) return alert('프로필 탭에서 내 프로필을 먼저 선택해주세요!');
-
             const d={pairCode:myPairCode, type:'novel', title:t, text:c, dateStr:new Date().toLocaleDateString(), createdAt:new Date()};
             if(!id) { d.author = info.name; d.authorRole = info.role; await db.collection('logs').add(d); }
             else await db.collection('logs').doc(id).update({title:t, text:c});
@@ -809,10 +946,8 @@
             const u=document.getElementById('music-url-input').value, t=document.getElementById('music-title-input').value, a=document.getElementById('music-artist-input').value, id=document.getElementById('music-id').value;
             let v=''; if(u.includes('v=')) v=u.split('v=')[1].substring(0,11); else if(u.includes('youtu.be/')) v=u.split('youtu.be/')[1].substring(0,11);
             if(!t || !v) return alert('필수 입력');
-            
             const info = getMyInfo();
             if(!id && (!info.role)) return alert('프로필 탭에서 내 프로필을 먼저 선택해주세요!');
-
             const d={pairCode:myPairCode, type:'music', title:t, artist:a, videoId:v, createdAt:new Date()};
             if(!id) { d.author = info.name; d.authorRole = info.role; await db.collection('logs').add(d); }
             else await db.collection('logs').doc(id).update({title:t, artist:a, videoId:v});
@@ -826,10 +961,8 @@
         async function saveTmi(){
             const id=document.getElementById('tmi-id').value, t=document.getElementById('tmi-content-input').value;
             if(!t) return alert('내용 입력');
-            
             const info = getMyInfo();
             if(!id && (!info.role)) return alert('프로필 탭에서 내 프로필을 먼저 선택해주세요!');
-
             const d={pairCode:myPairCode, type:'tmi', text:t, dateStr:new Date().toLocaleDateString(), createdAt:new Date()};
             if(!id) { d.author = info.name; d.authorRole = info.role; await db.collection('logs').add(d); }
             else await db.collection('logs').doc(id).update({text:t});
